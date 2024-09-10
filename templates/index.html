@@ -296,78 +296,86 @@
             }
 
             function showRegionView(year, region) {
-                d3.select("#regionView").html("");
-                const margin = {top: 20, right: 20, bottom: 30, left: 40};
-                const width = $('.container').width() - margin.left - margin.right;
-                const height = 400 - margin.top - margin.bottom;
+    console.log("Showing region view for year:", year, "and region:", region);
 
-                const svg = d3.select("#regionView").append("svg")
-                    .attr("width", width + margin.left + margin.right)
-                    .attr("height", height + margin.top + margin.bottom)
-                    .append("g")
-                    .attr("transform", `translate(${margin.left},${margin.top})`);
+    d3.select("#regionView").html(""); 
+    const margin = {top: 20, right: 20, bottom: 30, left: 40};
+    const width = $('.container').width() - margin.left - margin.right;
+    const height = 400 - margin.top - margin.bottom;
 
-                // Create a time scale for the entire year
-                const yearStart = new Date(year, 0, 1);
-                const yearEnd = new Date(year, 11, 31);
-                const xScale = d3.scaleTime()
-                    .domain([yearStart, yearEnd])
-                    .range([0, width]);
+    const svg = d3.select("#regionView").append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
 
-                // Add x-axis with months
-                const xAxis = d3.axisBottom(xScale)
-                    .ticks(d3.timeMonth.every(1))
-                    .tickFormat(d3.timeFormat("%b"));
-                
-                svg.append("g")
-                    .attr("transform", `translate(0,${height})`)
-                    .call(xAxis);
+    const yearStart = new Date(year, 0, 1);
+    const yearEnd = new Date(year, 11, 31);
+    console.log("Year start:", yearStart, "Year end:", yearEnd);
 
-                // Add days ticks
-                const daysAxis = d3.axisBottom(xScale)
-                    .ticks(d3.timeDay.every(1))
-                    .tickSize(5)
-                    .tickFormat("");
+    const xScale = d3.scaleTime()
+        .domain([yearStart, yearEnd])
+        .range([0, width]);
 
-                svg.append("g")
-                    .attr("transform", `translate(0,${height})`)
-                    .call(daysAxis);
+    const xAxis = d3.axisBottom(xScale)
+        .ticks(d3.timeMonth.every(1))
+        .tickFormat(d3.timeFormat("%b"));
 
-                const filteredContacts = contacts.filter(c => {
-                    const contactDate = new Date(c.date);
-                    return contactDate.getFullYear() === year && c.region === region;
-                });
+    svg.append("g")
+        .attr("transform", `translate(0,${height})`)
+        .call(xAxis);
 
-                const simulation = d3.forceSimulation(filteredContacts)
-                    .force("x", d => d3.forceX(d => xScale(new Date(d.date))).strength(1))
-                    .force("y", d3.forceY(height / 2).strength(0.1))
-                    .force("collide", d3.forceCollide(10));
+    const daysAxis = d3.axisBottom(xScale)
+        .ticks(d3.timeDay.every(1))
+        .tickSize(5)
+        .tickFormat("");
 
+    svg.append("g")
+        .attr("transform", `translate(0,${height})`)
+        .call(daysAxis);
 
+    const filteredContacts = contacts.filter(c => {
+        const contactDate = new Date(c.date);
+        return contactDate.getFullYear() === year && c.region === region;
+    });
 
+    console.log("Filtered contacts:", filteredContacts);
 
-                    const nodes = svg.selectAll(".contact")
-                    .data(filteredContacts)
-                    .enter().append("g")
-                    .attr("class", "contact")
-                    .on("click", function(event, d) {
-                        showContactDetails(d);
-                    });
+    const nodes = svg.selectAll(".contact")
+        .data(filteredContacts)
+        .enter().append("g")
+        .attr("class", "contact")
+        .attr("transform", d => {
+            const dateParts = d.date.split(/[^0-9]/);
+            const date = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], dateParts[3], dateParts[4], dateParts[5]);
+            console.log("Contact date:", d.date, "Parsed date:", date, "X position:", xScale(date));
+            d.initialX = xScale(date); 
+            return `translate(${d.initialX},${height/2})`;
+        })
+        .on("click", function(event, d) {
+            showContactDetails(d);
+        });
 
-                nodes.append("circle")
-                    .attr("r", 5)
-                    .attr("fill", d3.schemeCategory10[0]);
+    nodes.append("circle")
+        .attr("r", 5)
+        .attr("fill", d3.schemeCategory10[0]);
 
-                nodes.append("text")
-                    .attr("dy", -10)
-                    .text(d => `${d.first_name} ${d.last_name}`)
-                    .attr("text-anchor", "middle")
-                    .attr("font-size", "8px");
+    nodes.append("text")
+        .attr("dy", -10)
+        .text(d => `${d.first_name} ${d.last_name}`)
+        .attr("text-anchor", "middle")
+        .attr("font-size", "8px");
 
-                simulation.on("tick", () => {
-                    nodes.attr("transform", d => `translate(${d.x},${d.y})`);
-                });
-            }
+    const simulation = d3.forceSimulation(filteredContacts)
+        .force("x", d3.forceX(d => d.initialX).strength(1)) 
+        .force("y", d3.forceY(height / 2).strength(0.1)) 
+        .force("collide", d3.forceCollide(10)) 
+        .on("tick", ticked);
+
+    function ticked() {
+        nodes.attr("transform", d => `translate(${d.x},${d.y})`);
+    }
+}
 
             function showContactDetails(contact) {
                 $('#contactDetails').html(`
