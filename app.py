@@ -1,18 +1,35 @@
 import json
 import phonenumbers
-from flask import Flask, render_template, request, jsonify, session
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from datetime import datetime
-import html
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import base64
 import os
+import uuid
+from collections import defaultdict
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # Generate a random secret key for the session
-import phonenumbers
 
+# In-memory storage for encrypted data (in a production environment, use a proper database)
+encrypted_data_storage = {}
+
+
+@app.route('/get_contacts')
+def get_contacts():
+    contacts = session.get('decrypted_contacts')
+    if not contacts:
+        return jsonify({"error": "No decrypted contact data found"}), 400
+    return jsonify(contacts)
+
+@app.route('/visualizations')
+def visualizations():
+    if 'decrypted_contacts' not in session:
+        return redirect(url_for('index'))
+    return render_template('visualizations.html') 
+       
 def get_region_code(phone_number):
     # List of possible country codes to try
     country_codes = ['', '1', '44', '91', '86', '81', '49', '33', '39', '7', '34', '31', '46']
@@ -48,8 +65,6 @@ def get_region_code(phone_number):
 
     return "Unknown"
 
-# The rest of your Flask application code remains the same
-
 def generate_key(password):
     salt = os.urandom(16)
     kdf = PBKDF2HMAC(
@@ -73,11 +88,11 @@ def get_key(password, salt):
 
 def encrypt_data(data, key):
     f = Fernet(key)
-    return f.encrypt(data.encode()).decode()
+    return f.encrypt(json.dumps(data).encode()).decode()
 
-def decrypt_data(data, key):
+def decrypt_data(encrypted_data, key):
     f = Fernet(key)
-    return f.decrypt(data.encode()).decode()
+    return json.loads(f.decrypt(encrypted_data.encode()).decode())
 
 @app.route('/')
 def index():
@@ -107,54 +122,104 @@ def encrypt():
     
     key, salt = generate_key(password)
     
-    # Encrypt sensitive data
-    for contact in contacts:
-        contact['first_name'] = encrypt_data(contact['first_name'], key)
-        contact['last_name'] = encrypt_data(contact['last_name'], key)
-        contact['phone_number'] = encrypt_data(contact['phone_number'], key)
+    encrypted_data = encrypt_data(contacts, key)
+    data_id = str(uuid.uuid4())
+    encrypted_data_storage[data_id] = {
+        'data': encrypted_data,
+        'salt': salt.hex()
+    }
     
-    session['contacts'] = contacts
-    session['salt'] = salt.hex()  # Store salt in session for later decryption
+    session['data_id'] = data_id
     
     return jsonify({"message": "Data encrypted successfully"})
 
 @app.route('/decrypt', methods=['POST'])
 def decrypt():
     password = request.json.get('password')
-    contacts = session.get('contacts')
-    salt = bytes.fromhex(session.get('salt', ''))
+    data_id = session.get('data_id')
     
-    if not password or not contacts or not salt:
-        return jsonify({"error": "Password, contacts, or salt not found"}), 400
+    if not password or not data_id:
+        return jsonify({"error": "Password or data ID not found"}), 400
+    
+    stored_data = encrypted_data_storage.get(data_id)
+    if not stored_data:
+        return jsonify({"error": "Encrypted data not found"}), 400
+    
+    encrypted_data = stored_data['data']
+    salt = bytes.fromhex(stored_data['salt'])
     
     key = get_key(password, salt)
     
     try:
-        # Decrypt sensitive data
-        decrypted_contacts = []
-        for contact in contacts:
-            decrypted_contact = contact.copy()
-            decrypted_contact['first_name'] = decrypt_data(contact['first_name'], key)
-            decrypted_contact['last_name'] = decrypt_data(contact['last_name'], key)
-            decrypted_contact['phone_number'] = decrypt_data(contact['phone_number'], key)
-            decrypted_contact['region'] = get_region_code(decrypted_contact['phone_number'])
-            decrypted_contacts.append(decrypted_contact)
+        decrypted_contacts = decrypt_data(encrypted_data, key)
+        for contact in decrypted_contacts:
+            contact['region'] = get_region_code(contact['phone_number'])
         
-        return jsonify(decrypted_contacts)
+        session['decrypted_contacts'] = decrypted_contacts
+        return jsonify({"message": "Data decrypted successfully"})
     except:
         return jsonify({"error": "Incorrect password or data corruption"}), 400
 
-@app.route('/get_regions')
-def get_regions():
-    contacts = session.get('contacts')
+@app.route('/get_timeline_data')
+def get_timeline_data():
+    contacts = session.get('decrypted_contacts')
     if not contacts:
         return jsonify({"error": "No contact data found"}), 400
     
-    regions = set()
-    for contact in contacts:
-        regions.add(get_region_code(contact['phone_number']))
+    timeline_data = defaultdict(lambda: defaultdict(int))
     
-    return jsonify(list(regions))
+    for contact in contacts:
+        date = datetime.strptime(contact['date'], "%Y-%m-%dT%H:%M:%S")
+        year = date.year
+        month = date.month
+        region = contact['region']
+        timeline_data[year][region] += 1
+    
+    formatted_data = [
+        {
+            "year": year,
+            "regions": [{"name": region, "count": count} for region, count in regions.items()]
+        }
+        for year, regions in timeline_data.items()
+    ]
+    
+    return jsonify(formatted_data)
+
+@app.route('/get_region_data/<region>')
+def get_region_data(region):
+    contacts = session.get('decrypted_contacts')
+    if not contacts:
+        return jsonify({"error": "No contact data found"}), 400
+    
+    region_contacts = [c for c in contacts if c['region'] == region]
+    
+    contact_data = [
+        {
+            "name": f"{c['first_name']} {c['last_name']}",
+            "date": c['date'],
+            "phone_number": c['phone_number']
+        }
+        for c in region_contacts
+    ]
+    
+    return jsonify(contact_data)
+
+@app.route('/get_contact_details/<path:name>')
+def get_contact_details(name):
+    contacts = session.get('decrypted_contacts')
+    if not contacts:
+        return jsonify({"error": "No contact data found"}), 400
+    
+    contact = next((c for c in contacts if f"{c['first_name']} {c['last_name']}" == name), None)
+    if not contact:
+        return jsonify({"error": "Contact not found"}), 404
+    
+    return jsonify({
+        "name": f"{contact['first_name']} {contact['last_name']}",
+        "phone_number": contact['phone_number'],
+        "region": contact['region'],
+        "date": contact['date']
+    })
 
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=5000, debug=True)
