@@ -1,0 +1,62 @@
+{
+    "about": "Here is the data you requested. Remember: Telegram is ad free, it doesn't use your data for ad targeting and doesn't sell it to others. Telegram only keeps the information it needs to function as a secure and feature-rich cloud service.\n\nCheck out Settings > Privacy & Security on Telegram's mobile apps for the relevant settings.",
+    "contacts": {
+     "about": "If you allow access, your contacts are continuously synced with Telegram. Thanks to this, you can easily switch to Telegram and immediately connect with friends across all your devices. We use data about your contacts to let you know when they join Telegram, and to display them by the name you set for them in your phone.\n\nYou can disable contact syncing or delete your stored contacts in Settings > Privacy & Security on Telegram's mobile apps.",
+     "list": [
+      {
+       "first_name": "AA",
+       "last_name": "BB",
+       "phone_number": "0545335334",
+       "date": "2021-11-17T19:46:20",
+       "date_unixtime": "1637153180"
+      },
+      {
+       "first_name": "Ca",
+       "last_name": "Dee",
+       "phone_number": "0016505456456",
+       "date": "2021-11-17T19:46:14",
+       "date_unixtime": "1637153174"
+      },
+     {
+       "first_name": "A",
+       "last_name": "B",
+       "phone_number": "0050685234509",
+       "date": "2024-02-27T07:58:20",
+       "date_unixtime": "1708995500"
+      }
+     ]
+    },
+    "frequent_contacts": {
+     "about": "This rating shows which people you are likelier to message frequently. Telegram uses this data to populate the 'People' box at the top of the Search section. This rating is also calculated for inline bots so that the app can suggest the bots you are most likely to use in the attachment menu (or when you start a new message with \"@\").\n\nTo delete this data, go to Settings > Privacy & Security and disable 'Suggest Frequent Contacts' (requires Telegram for iOS v.4.8.3 or Telegram for Android v.4.8.10 or higher).",
+     "list": [
+      {
+       "id": 7188635547,
+       "category": "people",
+       "type": "user",
+       "name": "Jeff",
+       "rating": 14.955634
+      },
+      {
+       "id": 49754331,
+       "category": "people",
+       "type": "user",
+       "name": "Bert",
+       "rating": 1.999983
+      },
+      {
+       "id": 105253455626,
+       "category": "people",
+       "type": "user",
+       "name": "Alice",
+       "rating": 1.748027
+      },
+      {
+       "id": 713543547,
+       "category": "calls",
+       "type": "user",
+       "name": "John",
+       "rating": 2.194402
+      }
+     ]
+    }
+   }

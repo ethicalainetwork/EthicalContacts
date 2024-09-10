@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Contact Viewer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #333;
+        }
+        input[type="file"], input[type="password"], button {
+            display: block;
+            margin: 10px 0;
+            padding: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        #searchInput, #regionFilter {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Secure Contact Viewer</h1>
+        
+        <div id="uploadSection">
+            <h2>Upload Contacts</h2>
+            <input type="file" id="fileInput" accept=".json">
+            <button id="uploadButton">Upload</button>
+        </div>
+        
+        <div id="passwordSection" style="display: none;">
+            <h2>Set Encryption Password</h2>
+            <input type="password" id="encryptPasswordInput" placeholder="Enter password for encryption">
+            <button id="encryptButton">Encrypt</button>
+        </div>
+        
+        <div id="decryptSection" style="display: none;">
+            <h2>Decrypt Contacts</h2>
+            <input type="password" id="decryptPasswordInput" placeholder="Enter password for decryption">
+            <button id="decryptButton">Decrypt</button>
+        </div>
+        
+        <div id="contactsSection" style="display: none;">
+            <h2>Contacts</h2>
+            <input type="text" id="searchInput" placeholder="Search by name...">
+            <select id="regionFilter">
+                <option value="">All Regions</option>
+            </select>
+            <table id="contactsTable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Phone</th>
+                        <th>Region</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            let contacts = [];
+
+            $('#uploadButton').click(function() {
+                let fileInput = $('#fileInput')[0];
+                if (fileInput.files.length > 0) {
+                    let formData = new FormData();
+                    formData.append('file', fileInput.files[0]);
+                    
+                    $.ajax({
+                        url: '/upload',
+                        type: 'POST',
+                        data: formData,
+                        processData: false,
+                        contentType: false,
+                        success: function(response) {
+                            alert('File uploaded successfully');
+                            $('#uploadSection').hide();
+                            $('#passwordSection').show();
+                        },
+                        error: function(xhr, status, error) {
+                            alert('Error uploading file: ' + xhr.responseJSON.error);
+                        }
+                    });
+                } else {
+                    alert('Please select a file to upload');
+                }
+            });
+
+            $('#encryptButton').click(function() {
+                let password = $('#encryptPasswordInput').val();
+                
+                $.ajax({
+                    url: '/encrypt',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({password: password}),
+                    success: function(response) {
+                        alert('Data encrypted successfully');
+                        $('#passwordSection').hide();
+                        $('#decryptSection').show();
+                    },
+                    error: function(xhr, status, error) {
+                        alert('Error encrypting data: ' + xhr.responseJSON.error);
+                    }
+                });
+            });
+
+            $('#decryptButton').click(function() {
+                let password = $('#decryptPasswordInput').val();
+                
+                $.ajax({
+                    url: '/decrypt',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({password: password}),
+                    success: function(response) {
+                        contacts = response;
+                        displayContacts(contacts);
+                        populateRegionFilter();
+                        $('#decryptSection').hide();
+                        $('#contactsSection').show();
+                    },
+                    error: function(xhr, status, error) {
+                        alert('Error decrypting data: ' + xhr.responseJSON.error);
+                    }
+                });
+            });
+
+            function displayContacts(contactsToDisplay) {
+                let tbody = $('#contactsTable tbody');
+                tbody.empty();
+                contactsToDisplay.forEach(function(contact) {
+                    tbody.append(`
+                        <tr>
+                            <td>${contact.first_name} ${contact.last_name}</td>
+                            <td>${contact.phone_number}</td>
+                            <td>${contact.region}</td>
+                            <td>${contact.date}</td>
+                        </tr>
+                    `);
+                });
+            }
+
+            function populateRegionFilter() {
+                $.getJSON('/get_regions', function(regions) {
+                    let regionFilter = $('#regionFilter');
+                    regions.forEach(function(region) {
+                        regionFilter.append(`<option value="${region}">${region}</option>`);
+                    });
+                });
+            }
+
+            $('#searchInput').on('input', function() {
+                let searchTerm = $(this).val().toLowerCase();
+                let filteredContacts = contacts.filter(function(contact) {
+                    return (contact.first_name + ' ' + contact.last_name).toLowerCase().includes(searchTerm);
+                });
+                displayContacts(filteredContacts);
+            });
+
+            $('#regionFilter').change(function() {
+                let selectedRegion = $(this).val();
+                let filteredContacts = selectedRegion ? 
+                    contacts.filter(contact => contact.region === selectedRegion) : 
+                    contacts;
+                displayContacts(filteredContacts);
+            });
+        });
+    </script>
+</body>
+</html>
